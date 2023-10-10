@@ -1,6 +1,7 @@
 package com.example.weatherapp
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -8,6 +9,7 @@ import android.util.Log
 import android.view.View
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.GridLayoutManager
@@ -18,6 +20,8 @@ import com.example.weatherapp.data.forecastModels.ForecastData
 import com.example.weatherapp.databinding.ActivityMainBinding
 import com.example.weatherapp.databinding.BottomSheetLayoutBinding
 import com.example.weatherapp.utils.RetrofitInstance
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.squareup.picasso.Picasso
@@ -34,11 +38,14 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.appcompat.widget.SearchView
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var sheetLayoutBinding: BottomSheetLayoutBinding
     private lateinit var dialog: BottomSheetDialog
+    private var city: String = "oradea"
+    private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,13 +56,38 @@ class MainActivity : AppCompatActivity() {
         dialog = BottomSheetDialog(this, R.style.BottomSheetTheme)
         dialog.setContentView(sheetLayoutBinding.root)
 
-        getCurrentWeather()
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
 
-        getCurrentWeather();
+        val queryTextListener = object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                if (query != null) {
+                    city = query
+                }
+                getCurrentWeather(city)
+                hideKeyboard()
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                // Handle text change here if needed
+                return false
+            }
+        }
+
+        binding.searchView.setOnQueryTextListener(queryTextListener)
+
+
+        //fetchLocation()
+        getCurrentWeather(city)
 
         binding.tvForecast.setOnClickListener({ showForecastDialog();})
 
+    }
+
+    private fun hideKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(binding.searchView.windowToken, 0)
     }
 
     private fun showForecastDialog() {
@@ -71,8 +103,7 @@ class MainActivity : AppCompatActivity() {
         // Fetch the forecast data and populate the RecyclerView in the bottom sheet dialog
         GlobalScope.launch(Dispatchers.IO) {
             val response = try {
-                RetrofitInstance.api.getForecast(
-                    "oradea",
+                RetrofitInstance.api.getForecast(city,
                     "metric",
                     applicationContext.getString(R.string.api_key)
                 )
@@ -104,11 +135,10 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun getForecast() {
+    private fun getForecast(city: String) {
         GlobalScope.launch(Dispatchers.IO) {
             val response = try {
-                RetrofitInstance.api.getForecast(
-                    "oradea",
+                RetrofitInstance.api.getForecast(city,
                     "metric",
                     applicationContext.getString(R.string.api_key)
                 )
@@ -136,10 +166,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetTextI18n")
-    private fun getCurrentWeather(){
+    private fun getCurrentWeather(city: String){
         GlobalScope.launch(Dispatchers.IO) {
             val response = try {
-                RetrofitInstance.api.getCurrentWeather("oradea", "metric", applicationContext.getString(R.string.api_key))
+                RetrofitInstance.api.getCurrentWeather(city, "metric", applicationContext.getString(R.string.api_key))
             }catch (e: IOException){
                 Toast.makeText(applicationContext, "app error ${e.message}", Toast.LENGTH_SHORT).show()
                 return@launch
